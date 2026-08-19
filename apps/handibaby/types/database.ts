@@ -253,62 +253,33 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      correct_score:
-        | {
-            Args: {
-              p_duel: number
-              p_journal_entry_id: string
-              p_loser_score: number
-              p_phase: string
-              p_previous: Json
-              p_rank_in_duel: number
-              p_tournament_public_id: string
-              p_winning_side: string
-              p_written_at: number
-            }
-            Returns: undefined
-          }
-        | {
-            Args: {
-              p_duel?: number
-              p_journal_entry_id: string
-              p_loser_score: number
-              p_phase: string
-              p_previous: Json
-              p_rank_in_duel?: number
-              p_tournament_public_id: string
-              p_winning_side: string
-              p_written_at: number
-            }
-            Returns: undefined
-          }
-      record_score:
-        | {
-            Args: {
-              p_duel: number
-              p_journal_entry_id: string
-              p_loser_score: number
-              p_phase: string
-              p_rank_in_duel: number
-              p_tournament_public_id: string
-              p_winning_side: string
-              p_written_at: number
-            }
-            Returns: undefined
-          }
-        | {
-            Args: {
-              p_duel?: number
-              p_journal_entry_id: string
-              p_loser_score: number
-              p_phase: string
-              p_rank_in_duel?: number
-              p_tournament_public_id: string
-              p_winning_side: string
-              p_written_at: number
-            }
-            Returns: undefined
-          }
+      correct_score: {
+        Args: {
+          p_duel: number
+          p_journal_entry_id: string
+          p_loser_score: number
+          p_phase: string
+          p_previous: Json
+          p_rank_in_duel: number
+          p_tournament_public_id: string
+          p_winning_side: string
+          p_written_at: number
+        }
+        Returns: undefined
+      }
+      record_score: {
+        Args: {
+          p_duel: number
+          p_journal_entry_id: string
+          p_loser_score: number
+          p_phase: string
+          p_rank_in_duel: number
+          p_tournament_public_id: string
+          p_winning_side: string
+          p_written_at: number
+        }
+        Returns: undefined
+      }
       save_player: {
         Args: { p_first_name: string; p_last_name: string; p_name_key: string }
         Returns: undefined
@@ -321,6 +292,17 @@ export type Database = {
           p_public_id: string
           p_start_date: string
           p_status: string
+        }
+        Returns: undefined
+      }
+      sync_tournament_bundle: {
+        Args: {
+          p_frozen_edition?: Json
+          p_matches?: Json
+          p_players?: Json
+          p_teams?: Json
+          p_tournament: Json
+          p_tournament_players?: Json
         }
         Returns: undefined
       }
