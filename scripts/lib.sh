@@ -35,7 +35,11 @@ next_version() {
   local epoch ts
   epoch=$(date -u +%s)
   while :; do
-    ts=$(date -u -d "@$epoch" +%Y%m%d%H%M%S)
+    if date --version >/dev/null 2>&1; then
+      ts=$(date -u -d "@$epoch" +%Y%m%d%H%M%S)
+    else
+      ts=$(date -u -r "$epoch" +%Y%m%d%H%M%S)
+    fi
     compgen -G "$ROOT/supabase/migrations/${ts}_*.sql" >/dev/null || break
     epoch=$((epoch + 1))
   done
