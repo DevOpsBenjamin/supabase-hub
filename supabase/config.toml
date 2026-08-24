@@ -31,11 +31,13 @@ additional_redirect_urls = [
   "https://*.pages.dev/**",
   "http://localhost:*/**",
   "http://127.0.0.1:*/**",
-  "https://*.vercel.app/**"
+  "https://*.vercel.app/**",
+  "com.devopsbenjamin.simplebodygraph://**",
+  "com.devopsbenjamin.simplebodygraph://auth-callback"
 ]
 
 [auth.external.google]
 enabled = true
-client_id = "env(GOOGLE_CLIENT_ID)"
+client_id = "425184571870-upukhknebk3h4obnhgn7173tifg4obj3.apps.googleusercontent.com"
 secret = "env(GOOGLE_CLIENT_SECRET)"
 
