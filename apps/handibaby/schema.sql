@@ -213,6 +213,33 @@ $$;
 ALTER FUNCTION "app_handibaby"."save_tournament"("p_public_id" "text", "p_label" "text", "p_start_date" "text", "p_status" "text", "p_passphrase_hash" "text", "p_created_at" bigint) OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "app_handibaby"."swap_match_sides"("p_tournament_public_id" "text", "p_phase" "text", "p_duel" integer, "p_rank_in_duel" integer, "p_sides_swapped" boolean, "p_balanced_rank_in_duel" integer DEFAULT NULL::integer, "p_balanced_sides_swapped" boolean DEFAULT NULL::boolean) RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+begin
+    update app_handibaby.matches
+    set sides_swapped = p_sides_swapped
+    where tournament_public_id = p_tournament_public_id
+      and phase = p_phase
+      and duel = p_duel
+      and rank_in_duel = p_rank_in_duel;
+
+    if p_balanced_rank_in_duel is not null and p_balanced_sides_swapped is not null then
+        update app_handibaby.matches
+        set sides_swapped = p_balanced_sides_swapped
+        where tournament_public_id = p_tournament_public_id
+          and phase = p_phase
+          and duel = p_duel
+          and rank_in_duel = p_balanced_rank_in_duel;
+    end if;
+end;
+$$;
+
+
+ALTER FUNCTION "app_handibaby"."swap_match_sides"("p_tournament_public_id" "text", "p_phase" "text", "p_duel" integer, "p_rank_in_duel" integer, "p_sides_swapped" boolean, "p_balanced_rank_in_duel" integer, "p_balanced_sides_swapped" boolean) OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "app_handibaby"."sync_tournament_bundle"("p_tournament" "jsonb", "p_players" "jsonb" DEFAULT '[]'::"jsonb", "p_tournament_players" "jsonb" DEFAULT '[]'::"jsonb", "p_teams" "jsonb" DEFAULT '[]'::"jsonb", "p_matches" "jsonb" DEFAULT '[]'::"jsonb", "p_frozen_edition" "jsonb" DEFAULT NULL::"jsonb") RETURNS "void"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -323,7 +350,8 @@ begin
                 rank_in_duel,
                 winning_side,
                 loser_score,
-                entered_at
+                entered_at,
+                sides_swapped
             ) values (
                 v_public_id,
                 v_match->>'phase',
@@ -331,13 +359,15 @@ begin
                 (v_match->>'rank_in_duel')::integer,
                 v_match->>'winning_side',
                 (v_match->>'loser_score')::integer,
-                (v_match->>'entered_at')::bigint
+                (v_match->>'entered_at')::bigint,
+                coalesce((v_match->>'sides_swapped')::boolean, false)
             )
             on conflict (tournament_public_id, phase, duel, rank_in_duel)
             do update set
                 winning_side = excluded.winning_side,
                 loser_score = excluded.loser_score,
-                entered_at = excluded.entered_at;
+                entered_at = excluded.entered_at,
+                sides_swapped = excluded.sides_swapped;
         end loop;
     end if;
 
@@ -386,7 +416,8 @@ CREATE TABLE IF NOT EXISTS "app_handibaby"."matches" (
     "rank_in_duel" integer,
     "winning_side" "text",
     "loser_score" integer,
-    "entered_at" bigint
+    "entered_at" bigint,
+    "sides_swapped" boolean DEFAULT false NOT NULL
 );
 
 
@@ -664,6 +695,12 @@ GRANT ALL ON FUNCTION "app_handibaby"."save_player"("p_first_name" "text", "p_la
 GRANT ALL ON FUNCTION "app_handibaby"."save_tournament"("p_public_id" "text", "p_label" "text", "p_start_date" "text", "p_status" "text", "p_passphrase_hash" "text", "p_created_at" bigint) TO "anon";
 GRANT ALL ON FUNCTION "app_handibaby"."save_tournament"("p_public_id" "text", "p_label" "text", "p_start_date" "text", "p_status" "text", "p_passphrase_hash" "text", "p_created_at" bigint) TO "authenticated";
 GRANT ALL ON FUNCTION "app_handibaby"."save_tournament"("p_public_id" "text", "p_label" "text", "p_start_date" "text", "p_status" "text", "p_passphrase_hash" "text", "p_created_at" bigint) TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "app_handibaby"."swap_match_sides"("p_tournament_public_id" "text", "p_phase" "text", "p_duel" integer, "p_rank_in_duel" integer, "p_sides_swapped" boolean, "p_balanced_rank_in_duel" integer, "p_balanced_sides_swapped" boolean) TO "anon";
+GRANT ALL ON FUNCTION "app_handibaby"."swap_match_sides"("p_tournament_public_id" "text", "p_phase" "text", "p_duel" integer, "p_rank_in_duel" integer, "p_sides_swapped" boolean, "p_balanced_rank_in_duel" integer, "p_balanced_sides_swapped" boolean) TO "authenticated";
+GRANT ALL ON FUNCTION "app_handibaby"."swap_match_sides"("p_tournament_public_id" "text", "p_phase" "text", "p_duel" integer, "p_rank_in_duel" integer, "p_sides_swapped" boolean, "p_balanced_rank_in_duel" integer, "p_balanced_sides_swapped" boolean) TO "service_role";
 
 
 
