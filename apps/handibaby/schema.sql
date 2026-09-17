@@ -273,8 +273,9 @@ $$;
 ALTER FUNCTION "app_handibaby"."swap_match_sides"("p_tournament_public_id" "text", "p_phase" "text", "p_duel" integer, "p_rank_in_duel" integer, "p_sides_swapped" boolean, "p_balanced_rank_in_duel" integer, "p_balanced_sides_swapped" boolean) OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "app_handibaby"."sync_tournament_bundle"("p_tournament" "jsonb", "p_players" "jsonb", "p_tournament_players" "jsonb", "p_teams" "jsonb", "p_matches" "jsonb", "p_frozen_edition" "jsonb" DEFAULT NULL::"jsonb") RETURNS "void"
+CREATE OR REPLACE FUNCTION "app_handibaby"."sync_tournament_bundle"("p_tournament" "jsonb", "p_players" "jsonb" DEFAULT '[]'::"jsonb", "p_tournament_players" "jsonb" DEFAULT '[]'::"jsonb", "p_teams" "jsonb" DEFAULT '[]'::"jsonb", "p_matches" "jsonb" DEFAULT '[]'::"jsonb", "p_frozen_edition" "jsonb" DEFAULT NULL::"jsonb") RETURNS "void"
     LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
     AS $$
 declare
     v_player jsonb;
@@ -286,6 +287,14 @@ begin
     v_public_id := p_tournament->>'public_id';
     if v_public_id is null or v_public_id = '' then
         raise exception 'Missing tournament public_id';
+    end if;
+
+    -- Reject quiz pseudo-tournaments from polluting tournaments table
+    if coalesce(p_tournament->>'status', '') = 'quiz'
+       or v_public_id like 'quiz-%'
+       or v_public_id = 'test-quiz'
+       or coalesce(p_tournament->>'label', '') ilike '%quiz%' then
+        return;
     end if;
 
     -- Upsert tournament
@@ -781,6 +790,11 @@ GRANT ALL ON FUNCTION "app_handibaby"."save_tournament"("p_public_id" "text", "p
 GRANT ALL ON FUNCTION "app_handibaby"."swap_match_sides"("p_tournament_public_id" "text", "p_phase" "text", "p_duel" integer, "p_rank_in_duel" integer, "p_sides_swapped" boolean, "p_balanced_rank_in_duel" integer, "p_balanced_sides_swapped" boolean) TO "anon";
 GRANT ALL ON FUNCTION "app_handibaby"."swap_match_sides"("p_tournament_public_id" "text", "p_phase" "text", "p_duel" integer, "p_rank_in_duel" integer, "p_sides_swapped" boolean, "p_balanced_rank_in_duel" integer, "p_balanced_sides_swapped" boolean) TO "authenticated";
 GRANT ALL ON FUNCTION "app_handibaby"."swap_match_sides"("p_tournament_public_id" "text", "p_phase" "text", "p_duel" integer, "p_rank_in_duel" integer, "p_sides_swapped" boolean, "p_balanced_rank_in_duel" integer, "p_balanced_sides_swapped" boolean) TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "app_handibaby"."sync_tournament_bundle"("p_tournament" "jsonb", "p_players" "jsonb", "p_tournament_players" "jsonb", "p_teams" "jsonb", "p_matches" "jsonb", "p_frozen_edition" "jsonb") TO "anon";
+GRANT ALL ON FUNCTION "app_handibaby"."sync_tournament_bundle"("p_tournament" "jsonb", "p_players" "jsonb", "p_tournament_players" "jsonb", "p_teams" "jsonb", "p_matches" "jsonb", "p_frozen_edition" "jsonb") TO "authenticated";
 
 
 

@@ -357,11 +357,11 @@ export type Database = {
       sync_tournament_bundle: {
         Args: {
           p_frozen_edition?: Json
-          p_matches: Json
-          p_players: Json
-          p_teams: Json
+          p_matches?: Json
+          p_players?: Json
+          p_teams?: Json
           p_tournament: Json
-          p_tournament_players: Json
+          p_tournament_players?: Json
         }
         Returns: undefined
       }
