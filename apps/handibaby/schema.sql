@@ -180,6 +180,39 @@ $$;
 ALTER FUNCTION "app_handibaby"."save_player"("p_first_name" "text", "p_last_name" "text", "p_name_key" "text") OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "app_handibaby"."save_quiz_attempt"("p_public_id" "text", "p_candidate_name" "text", "p_score" integer, "p_total_questions" integer, "p_answers" "jsonb", "p_completed_at" bigint) RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO ''
+    AS $$
+begin
+    insert into app_handibaby.quiz_attempts (
+        public_id,
+        candidate_name,
+        score,
+        total_questions,
+        answers,
+        completed_at
+    ) values (
+        p_public_id,
+        p_candidate_name,
+        p_score,
+        p_total_questions,
+        p_answers,
+        p_completed_at
+    )
+    on conflict (public_id) do update
+    set candidate_name = excluded.candidate_name,
+        score = excluded.score,
+        total_questions = excluded.total_questions,
+        answers = excluded.answers,
+        completed_at = excluded.completed_at;
+end;
+$$;
+
+
+ALTER FUNCTION "app_handibaby"."save_quiz_attempt"("p_public_id" "text", "p_candidate_name" "text", "p_score" integer, "p_total_questions" integer, "p_answers" "jsonb", "p_completed_at" bigint) OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "app_handibaby"."save_tournament"("p_public_id" "text", "p_label" "text", "p_start_date" "text", "p_status" "text", "p_passphrase_hash" "text", "p_created_at" bigint) RETURNS "void"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO ''
@@ -240,9 +273,8 @@ $$;
 ALTER FUNCTION "app_handibaby"."swap_match_sides"("p_tournament_public_id" "text", "p_phase" "text", "p_duel" integer, "p_rank_in_duel" integer, "p_sides_swapped" boolean, "p_balanced_rank_in_duel" integer, "p_balanced_sides_swapped" boolean) OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "app_handibaby"."sync_tournament_bundle"("p_tournament" "jsonb", "p_players" "jsonb" DEFAULT '[]'::"jsonb", "p_tournament_players" "jsonb" DEFAULT '[]'::"jsonb", "p_teams" "jsonb" DEFAULT '[]'::"jsonb", "p_matches" "jsonb" DEFAULT '[]'::"jsonb", "p_frozen_edition" "jsonb" DEFAULT NULL::"jsonb") RETURNS "void"
+CREATE OR REPLACE FUNCTION "app_handibaby"."sync_tournament_bundle"("p_tournament" "jsonb", "p_players" "jsonb", "p_tournament_players" "jsonb", "p_teams" "jsonb", "p_matches" "jsonb", "p_frozen_edition" "jsonb" DEFAULT NULL::"jsonb") RETURNS "void"
     LANGUAGE "plpgsql" SECURITY DEFINER
-    SET "search_path" TO ''
     AS $$
 declare
     v_player jsonb;
@@ -339,7 +371,7 @@ begin
         end loop;
     end if;
 
-    -- Upsert matches
+    -- Upsert matches: preserve true sides_swapped
     if p_matches is not null and p_matches != 'null'::jsonb then
         for v_match in select * from jsonb_array_elements(p_matches)
         loop
@@ -364,10 +396,10 @@ begin
             )
             on conflict (tournament_public_id, phase, duel, rank_in_duel)
             do update set
-                winning_side = excluded.winning_side,
-                loser_score = excluded.loser_score,
-                entered_at = excluded.entered_at,
-                sides_swapped = excluded.sides_swapped;
+                winning_side = coalesce(excluded.winning_side, app_handibaby.matches.winning_side),
+                loser_score = coalesce(excluded.loser_score, app_handibaby.matches.loser_score),
+                entered_at = coalesce(excluded.entered_at, app_handibaby.matches.entered_at),
+                sides_swapped = app_handibaby.matches.sides_swapped or coalesce((v_match->>'sides_swapped')::boolean, false);
         end loop;
     end if;
 
@@ -449,6 +481,32 @@ ALTER TABLE "app_handibaby"."players" OWNER TO "postgres";
 
 ALTER TABLE "app_handibaby"."players" ALTER COLUMN "id" ADD GENERATED ALWAYS AS IDENTITY (
     SEQUENCE NAME "app_handibaby"."players_id_seq"
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+
+CREATE TABLE IF NOT EXISTS "app_handibaby"."quiz_attempts" (
+    "id" bigint NOT NULL,
+    "public_id" "text" NOT NULL,
+    "candidate_name" "text" NOT NULL,
+    "score" integer NOT NULL,
+    "total_questions" integer NOT NULL,
+    "answers" "jsonb" DEFAULT '{}'::"jsonb" NOT NULL,
+    "completed_at" bigint NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "app_handibaby"."quiz_attempts" OWNER TO "postgres";
+
+
+ALTER TABLE "app_handibaby"."quiz_attempts" ALTER COLUMN "id" ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME "app_handibaby"."quiz_attempts_id_seq"
     START WITH 1
     INCREMENT BY 1
     NO MINVALUE
@@ -559,6 +617,16 @@ ALTER TABLE ONLY "app_handibaby"."players"
 
 
 
+ALTER TABLE ONLY "app_handibaby"."quiz_attempts"
+    ADD CONSTRAINT "quiz_attempts_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "app_handibaby"."quiz_attempts"
+    ADD CONSTRAINT "quiz_attempts_public_id_key" UNIQUE ("public_id");
+
+
+
 ALTER TABLE ONLY "app_handibaby"."scores_journal"
     ADD CONSTRAINT "scores_journal_pkey" PRIMARY KEY ("entry_id");
 
@@ -656,6 +724,13 @@ ALTER TABLE "app_handibaby"."matches" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "app_handibaby"."players" ENABLE ROW LEVEL SECURITY;
 
 
+ALTER TABLE "app_handibaby"."quiz_attempts" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "quiz_attempts_select" ON "app_handibaby"."quiz_attempts" FOR SELECT TO "authenticated", "anon" USING (true);
+
+
+
 ALTER TABLE "app_handibaby"."scores_journal" ENABLE ROW LEVEL SECURITY;
 
 
@@ -692,6 +767,11 @@ GRANT ALL ON FUNCTION "app_handibaby"."save_player"("p_first_name" "text", "p_la
 
 
 
+GRANT ALL ON FUNCTION "app_handibaby"."save_quiz_attempt"("p_public_id" "text", "p_candidate_name" "text", "p_score" integer, "p_total_questions" integer, "p_answers" "jsonb", "p_completed_at" bigint) TO "anon";
+GRANT ALL ON FUNCTION "app_handibaby"."save_quiz_attempt"("p_public_id" "text", "p_candidate_name" "text", "p_score" integer, "p_total_questions" integer, "p_answers" "jsonb", "p_completed_at" bigint) TO "authenticated";
+
+
+
 GRANT ALL ON FUNCTION "app_handibaby"."save_tournament"("p_public_id" "text", "p_label" "text", "p_start_date" "text", "p_status" "text", "p_passphrase_hash" "text", "p_created_at" bigint) TO "anon";
 GRANT ALL ON FUNCTION "app_handibaby"."save_tournament"("p_public_id" "text", "p_label" "text", "p_start_date" "text", "p_status" "text", "p_passphrase_hash" "text", "p_created_at" bigint) TO "authenticated";
 GRANT ALL ON FUNCTION "app_handibaby"."save_tournament"("p_public_id" "text", "p_label" "text", "p_start_date" "text", "p_status" "text", "p_passphrase_hash" "text", "p_created_at" bigint) TO "service_role";
@@ -701,12 +781,6 @@ GRANT ALL ON FUNCTION "app_handibaby"."save_tournament"("p_public_id" "text", "p
 GRANT ALL ON FUNCTION "app_handibaby"."swap_match_sides"("p_tournament_public_id" "text", "p_phase" "text", "p_duel" integer, "p_rank_in_duel" integer, "p_sides_swapped" boolean, "p_balanced_rank_in_duel" integer, "p_balanced_sides_swapped" boolean) TO "anon";
 GRANT ALL ON FUNCTION "app_handibaby"."swap_match_sides"("p_tournament_public_id" "text", "p_phase" "text", "p_duel" integer, "p_rank_in_duel" integer, "p_sides_swapped" boolean, "p_balanced_rank_in_duel" integer, "p_balanced_sides_swapped" boolean) TO "authenticated";
 GRANT ALL ON FUNCTION "app_handibaby"."swap_match_sides"("p_tournament_public_id" "text", "p_phase" "text", "p_duel" integer, "p_rank_in_duel" integer, "p_sides_swapped" boolean, "p_balanced_rank_in_duel" integer, "p_balanced_sides_swapped" boolean) TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "app_handibaby"."sync_tournament_bundle"("p_tournament" "jsonb", "p_players" "jsonb", "p_tournament_players" "jsonb", "p_teams" "jsonb", "p_matches" "jsonb", "p_frozen_edition" "jsonb") TO "anon";
-GRANT ALL ON FUNCTION "app_handibaby"."sync_tournament_bundle"("p_tournament" "jsonb", "p_players" "jsonb", "p_tournament_players" "jsonb", "p_teams" "jsonb", "p_matches" "jsonb", "p_frozen_edition" "jsonb") TO "authenticated";
-GRANT ALL ON FUNCTION "app_handibaby"."sync_tournament_bundle"("p_tournament" "jsonb", "p_players" "jsonb", "p_tournament_players" "jsonb", "p_teams" "jsonb", "p_matches" "jsonb", "p_frozen_edition" "jsonb") TO "service_role";
 
 
 
@@ -730,6 +804,15 @@ GRANT SELECT ON TABLE "app_handibaby"."players" TO "anon";
 
 
 GRANT SELECT,USAGE ON SEQUENCE "app_handibaby"."players_id_seq" TO "authenticated";
+
+
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE "app_handibaby"."quiz_attempts" TO "authenticated";
+GRANT SELECT ON TABLE "app_handibaby"."quiz_attempts" TO "anon";
+
+
+
+GRANT SELECT,USAGE ON SEQUENCE "app_handibaby"."quiz_attempts_id_seq" TO "authenticated";
 
 
 
