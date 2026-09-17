@@ -100,6 +100,39 @@ export type Database = {
         }
         Relationships: []
       }
+      quiz_attempts: {
+        Row: {
+          answers: Json
+          candidate_name: string
+          completed_at: number
+          created_at: string
+          id: number
+          public_id: string
+          score: number
+          total_questions: number
+        }
+        Insert: {
+          answers?: Json
+          candidate_name: string
+          completed_at: number
+          created_at?: string
+          id?: never
+          public_id: string
+          score: number
+          total_questions: number
+        }
+        Update: {
+          answers?: Json
+          candidate_name?: string
+          completed_at?: number
+          created_at?: string
+          id?: never
+          public_id?: string
+          score?: number
+          total_questions?: number
+        }
+        Relationships: []
+      }
       scores_journal: {
         Row: {
           created_at: string
@@ -287,6 +320,17 @@ export type Database = {
         Args: { p_first_name: string; p_last_name: string; p_name_key: string }
         Returns: undefined
       }
+      save_quiz_attempt: {
+        Args: {
+          p_answers: Json
+          p_candidate_name: string
+          p_completed_at: number
+          p_public_id: string
+          p_score: number
+          p_total_questions: number
+        }
+        Returns: undefined
+      }
       save_tournament: {
         Args: {
           p_created_at: number
@@ -313,11 +357,11 @@ export type Database = {
       sync_tournament_bundle: {
         Args: {
           p_frozen_edition?: Json
-          p_matches?: Json
-          p_players?: Json
-          p_teams?: Json
+          p_matches: Json
+          p_players: Json
+          p_teams: Json
           p_tournament: Json
-          p_tournament_players?: Json
+          p_tournament_players: Json
         }
         Returns: undefined
       }
